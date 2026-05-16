@@ -1,0 +1,136 @@
+// Stdlib test: Amalgame.Database.MySQL — libmariadb binding.
+// Self-contained schema (`amctest_*` prefix) so a shared dev
+// server isn't polluted. Tests CREATE / INSERT / SELECT / DROP.
+//
+// Connection params come from MYSQL_* env vars the test runner
+// exports before invoking us (mirrors the PG test's PG* env
+// pattern, but libmariadb doesn't read env vars natively the way
+// libpq does, so we read them in AM via Env.Get).
+
+namespace Tests
+
+import Amalgame.Database.MySQL
+
+public class Program {
+    public static void Main(string[] args) {
+
+        let host: string = Env.Get("MYSQL_HOST")
+        let portS: string = Env.Get("MYSQL_PORT")
+        let user: string = Env.Get("MYSQL_USER")
+        let pass: string = Env.Get("MYSQL_PASSWORD")
+        let dbN:  string = Env.Get("MYSQL_DATABASE")
+        let port: int = if (String_Length(portS) > 0) { String_ToInt(portS) } else { 3306 }
+
+        let db = MySQL.Open(host, port, user, pass, dbN)
+        if (MySQL.IsOpen(db)) {
+            Console.WriteLine("[PASS] open " + host + ":" + String_FromInt(port))
+        } else {
+            Console.WriteLine("[FAIL] open: " + MySQL.LastError(db))
+            return
+        }
+
+        // ── ServerVersion ────────────────────────────────────
+        let ver: string = MySQL.ServerVersion(db)
+        if (String_Length(ver) > 0) {
+            Console.WriteLine("[PASS] ServerVersion: " + ver)
+        } else {
+            Console.WriteLine("[FAIL] ServerVersion empty")
+        }
+
+        // ── DDL: clean slate + table ──────────────────────────
+        MySQL.Exec(db, "DROP TABLE IF EXISTS amctest_notes")
+        let createOk: bool = MySQL.Exec(db,
+            "CREATE TABLE amctest_notes (id INT AUTO_INCREMENT PRIMARY KEY, body TEXT)")
+        if (createOk) {
+            Console.WriteLine("[PASS] CREATE TABLE")
+        } else {
+            Console.WriteLine("[FAIL] CREATE: " + MySQL.LastError(db))
+        }
+
+        // ── INSERT (3 rows) ───────────────────────────────────
+        MySQL.Exec(db, "INSERT INTO amctest_notes (body) VALUES ('alpha')")
+        MySQL.Exec(db, "INSERT INTO amctest_notes (body) VALUES ('beta')")
+        MySQL.Exec(db, "INSERT INTO amctest_notes (body) VALUES ('gamma')")
+        let lastChg: int = MySQL.Changes(db)
+        if (lastChg == 1) {
+            Console.WriteLine("[PASS] INSERT Changes==1")
+        } else {
+            Console.WriteLine("[FAIL] INSERT Changes=" + String_FromInt(lastChg))
+        }
+
+        // ── LastInsertId ──────────────────────────────────────
+        let lastId: int = MySQL.LastInsertId(db)
+        if (lastId == 3) {
+            Console.WriteLine("[PASS] LastInsertId==3")
+        } else {
+            Console.WriteLine("[FAIL] LastInsertId=" + String_FromInt(lastId))
+        }
+
+        // ── SELECT — 3 rows × 2 cols ─────────────────────────
+        let rows = MySQL.QueryAll(db,
+            "SELECT id, body FROM amctest_notes ORDER BY id")
+        if (rows.Count() == 3) {
+            Console.WriteLine("[PASS] SELECT 3 rows")
+        } else {
+            Console.WriteLine("[FAIL] SELECT got " + String_FromInt(rows.Count())
+                + " rows")
+        }
+
+        // ── Verify cell content (no annotations needed since amc v0.8.19+) ──
+        let row0 = rows.Get(0)
+        let row1 = rows.Get(1)
+        let row2 = rows.Get(2)
+        let body0: string = row0.Get(1)
+        let body1: string = row1.Get(1)
+        let body2: string = row2.Get(1)
+        let okB1: bool = body0 == "alpha"
+        let okB2: bool = body1 == "beta"
+        let okB3: bool = body2 == "gamma"
+        if (okB1 && okB2 && okB3) {
+            Console.WriteLine("[PASS] SELECT cell content")
+        } else {
+            Console.WriteLine("[FAIL] cells: '" + body0 + "' / '"
+                + body1 + "' / '" + body2 + "'")
+        }
+
+        // ── AUTO_INCREMENT id starts at 1 ─────────────────────
+        let id0: string = row0.Get(0)
+        if (id0 == "1") {
+            Console.WriteLine("[PASS] AUTO_INCREMENT id starts at 1")
+        } else {
+            Console.WriteLine("[FAIL] id0 = '" + id0 + "'")
+        }
+
+        // ── UPDATE — Changes returns affected count ──────────
+        MySQL.Exec(db,
+            "UPDATE amctest_notes SET body = 'updated' WHERE body = 'alpha' OR body = 'beta'")
+        let chgUpd: int = MySQL.Changes(db)
+        if (chgUpd == 2) {
+            Console.WriteLine("[PASS] UPDATE Changes==2")
+        } else {
+            Console.WriteLine("[FAIL] UPDATE Changes=" + String_FromInt(chgUpd))
+        }
+
+        // ── Bad SQL → LastError populated ────────────────────
+        let badOk: bool = MySQL.Exec(db, "INVALID SQL HERE")
+        if (badOk) {
+            Console.WriteLine("[FAIL] invalid sql returned OK")
+        } else {
+            let err: string = MySQL.LastError(db)
+            if (String_Length(err) > 0) {
+                Console.WriteLine("[PASS] bad SQL reports error")
+            } else {
+                Console.WriteLine("[FAIL] bad SQL: no error string")
+            }
+        }
+
+        // ── Cleanup + close ──────────────────────────────────
+        MySQL.Exec(db, "DROP TABLE amctest_notes")
+        MySQL.Close(db)
+        if (!MySQL.IsOpen(db)) {
+            Console.WriteLine("[PASS] Close drops connection")
+        } else {
+            Console.WriteLine("[FAIL] still open after Close")
+        }
+    }
+}

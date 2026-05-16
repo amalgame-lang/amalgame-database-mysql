@@ -1,0 +1,79 @@
+# Package manifest — amalgame-database-mysql
+#
+# MySQL / MariaDB binding for Amalgame — dynamic-linked to
+# `libmariadb` (the C connector that's drop-in compatible with
+# `libmysqlclient` and the de-facto standard on every modern
+# distro). Nothing vendored: this is the second amalgame-lang
+# package to exercise the dynamic-link manifest pattern, after
+# `amalgame-database-postgresql`.
+#
+# Works against both MariaDB ≥ 10.x and MySQL ≥ 5.7. The wire
+# protocol is shared, so the C client handles both transparently.
+#
+# Prereqs (compile time): the `libmariadb-dev` / `libmariadb-devel`
+# / `mariadb-connector-c` headers package — see README.md for the
+# per-OS install commands.
+#
+# Prereqs (runtime, the deployed user binary): the matching
+# `libmariadb` shared library must be present on the user's
+# machine.
+#
+# Surface (v1):
+#   Open(host, port, user, password, database) / Close /
+#     IsOpen / LastError                          lifecycle + diag
+#   Exec(sql)                                      DDL / INSERT / UPDATE / DELETE
+#   QueryAll(sql) → List<List<string>>             SELECT all rows × cols
+#   Changes                                        rows affected by last Exec
+#   LastInsertId                                   AUTO_INCREMENT of last INSERT
+#   ServerVersion                                  MariaDB / MySQL server version
+#
+# Out of scope (v2):
+#   - mysql_stmt_*** prepared statements + ? param binding
+#   - Typed column accessors (AsInt / AsBytes / AsTimestamp)
+#   - Async query mode (MYSQL_OPT_NONBLOCK)
+#   - LOAD DATA INFILE / streaming bulk loaders
+#   - SSL/TLS controls (libmariadb honours them via env vars
+#     today; explicit options surface lives in v2)
+#
+# Installation:
+#
+#   amc package add mysql                                           # via index
+#   amc package add github.com/amalgame-lang/amalgame-database-mysql@v0.1.0
+
+[package]
+name              = "amalgame-database-mysql"
+version           = "0.1.0"
+license           = "Apache-2.0"
+description       = "MySQL / MariaDB binding for Amalgame — dynamic-linked to libmariadb, no vendored lib."
+authors           = ["Bastien Mouget"]
+required-amalgame = ">=0.8.19"
+schema-version    = 1
+
+[stdlib]
+class     = "MySQL"
+header    = "runtime/Amalgame_Database_MySQL.h"
+namespace = "Amalgame.Database.MySQL"
+
+# No vendored .c sources — libmariadb is provided by the system.
+# The wrapper uses __has_include() to find the header across the
+# two common layouts (Debian: <mariadb/mysql.h>, Fedora / MSYS2 /
+# brew: <mysql.h>).
+
+# Link against the system libmariadb. amc forwards as `-lmariadb`
+# to the user binary's gcc step. `libmysqlclient` works too at
+# the API level (drop-in compatible) but only Fedora/RHEL ship
+# `-lmysqlclient`; `-lmariadb` is universally available.
+libs       = ["mariadb"]
+
+[stdlib.functions]
+Open           = { returns = "AmalgameMySQL*" }
+Close          = { returns = "void" }
+IsOpen         = { returns = "code_bool" }
+LastError      = { returns = "code_string" }
+Exec           = { returns = "code_bool" }
+QueryAll       = { returns = "AmalgameList*" }
+Changes        = { returns = "i64" }
+LastInsertId   = { returns = "i64" }
+ServerVersion  = { returns = "code_string" }
+
+[dependencies]

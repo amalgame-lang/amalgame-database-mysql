@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test against amc ${{ matrix.amc-tag }}
+    runs-on: ubuntu-latest
+
+    # GitHub Actions native service container: a fresh MySQL
+    # instance is spun up alongside the job. Health-check waits
+    # for mysqladmin ping before steps run.
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: test
+          MYSQL_DATABASE: amctest
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -ptest"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      MYSQL_HOST: 127.0.0.1
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: test
+      MYSQL_DATABASE: amctest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # v0.8.19+ is required (cgen + LSP fixes for cross-package
+        # opaque collection indexing). Append a tag whenever amc
+        # cuts a meaningfully relevant release.
+        amc-tag: [v0.8.20]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system deps (libgc + libcurl + libmariadb-dev)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libgc-dev libcurl4-openssl-dev libmariadb-dev mariadb-client
+
+      - name: Download amc ${{ matrix.amc-tag }}
+        run: |
+          set -e
+          TAG="${{ matrix.amc-tag }}"
+          VERSION="${TAG#v}"
+          curl -sSL -o amc.tar.gz \
+            "https://github.com/amalgame-lang/Amalgame/releases/download/${TAG}/amc-${VERSION}-linux-x86_64.tar.gz"
+          mkdir -p $RUNNER_TEMP/amc-install
+          # XDG layout since v0.8.1: bin/amc + share/amalgame/runtime
+          tar -xzf amc.tar.gz -C $RUNNER_TEMP/amc-install --strip-components=1
+          echo "AMC=$RUNNER_TEMP/amc-install/bin/amc" >> $GITHUB_ENV
+          echo "AMC_RUNTIME=$RUNNER_TEMP/amc-install/share/amalgame/runtime" >> $GITHUB_ENV
+
+      - name: Probe libmariadb + mysql reachability
+        run: |
+          echo "── libmariadb header probe ──"
+          for h in 'mysql.h' 'mariadb/mysql.h' 'mysql/mysql.h'; do
+            if echo "#include <$h>" | gcc -E -xc - >/dev/null 2>&1; then
+              echo "  $h: OK"; break
+            fi
+          done
+          echo "── mysql reachability ──"
+          mysql -h 127.0.0.1 -uroot -ptest amctest -e "SELECT version();" || \
+            { echo "  mysql unreachable — service container not healthy?"; exit 1; }
+
+      - name: Run end-to-end tests
+        run: |
+          chmod +x ./tests/run_tests.sh
+          ./tests/run_tests.sh "$AMC"
