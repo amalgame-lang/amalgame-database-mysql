@@ -34,10 +34,10 @@ shared lib without the server.
 
 ```bash
 amc package add mysql                                              # via index
-amc package add github.com/amalgame-lang/amalgame-database-mysql@v0.1.0
+amc package add github.com/amalgame-lang/amalgame-database-mysql@v0.2.0
 ```
 
-Requires **amc 0.8.19+**.
+Requires **amc 0.8.40+** (for `returns_generic` on QueryAll).
 
 ## Surface
 
