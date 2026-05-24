@@ -76,13 +76,16 @@ public class Program {
                 + " rows")
         }
 
-        // ── Verify cell content (no annotations needed since amc v0.8.19+) ──
+        // ── Verify cell content. v0.2.0 manifest declares
+        //    returns_generic = "List<List<string>>" so amc infers
+        //    the full chain (List<List<string>> → .Get(i) →
+        //    List<string> → .Get(j) → string). No annotations.
         let row0 = rows.Get(0)
         let row1 = rows.Get(1)
         let row2 = rows.Get(2)
-        let body0: string = row0.Get(1)
-        let body1: string = row1.Get(1)
-        let body2: string = row2.Get(1)
+        let body0 = row0.Get(1)
+        let body1 = row1.Get(1)
+        let body2 = row2.Get(1)
         let okB1: bool = body0 == "alpha"
         let okB2: bool = body1 == "beta"
         let okB3: bool = body2 == "gamma"
@@ -94,7 +97,7 @@ public class Program {
         }
 
         // ── AUTO_INCREMENT id starts at 1 ─────────────────────
-        let id0: string = row0.Get(0)
+        let id0 = row0.Get(0)
         if (id0 == "1") {
             Console.WriteLine("[PASS] AUTO_INCREMENT id starts at 1")
         } else {

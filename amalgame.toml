@@ -42,11 +42,11 @@
 
 [package]
 name              = "amalgame-database-mysql"
-version           = "0.1.0"
+version           = "0.2.0"
 license           = "Apache-2.0"
-description       = "MySQL / MariaDB binding for Amalgame — dynamic-linked to libmariadb, no vendored lib."
+description       = "MySQL / MariaDB binding for Amalgame — dynamic-linked to libmariadb, no vendored lib. QueryAll returns typed List<List<string>>."
 authors           = ["Bastien Mouget"]
-required-amalgame = ">=0.8.19"
+required-amalgame = ">=0.8.40"
 schema-version    = 1
 
 [stdlib]
@@ -71,7 +71,10 @@ Close          = { returns = "void" }
 IsOpen         = { returns = "code_bool" }
 LastError      = { returns = "code_string" }
 Exec           = { returns = "code_bool" }
-QueryAll       = { returns = "AmalgameList*" }
+# `returns_generic` (amc 0.8.40+) lets `let row = rows.Get(i)` infer
+# to `List<string>` and `row.Get(j)` to `string` — no explicit
+# annotations on the consumer side.
+QueryAll       = { returns = "AmalgameList*", returns_generic = "List<List<string>>" }
 Changes        = { returns = "i64" }
 LastInsertId   = { returns = "i64" }
 ServerVersion  = { returns = "code_string" }
