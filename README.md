@@ -65,7 +65,7 @@ while (i < rows.Count()) {
 MySQL.Close(db)
 ```
 
-### v0.1.0 method surface
+### Method surface
 
 | Method | Returns | Notes |
 |---|---|---|
@@ -78,6 +78,29 @@ MySQL.Close(db)
 | `MySQL.Changes(db)` | `int` | Rows affected by last Exec / row count of last QueryAll |
 | `MySQL.LastInsertId(db)` | `int` | AUTO_INCREMENT value of last INSERT |
 | `MySQL.ServerVersion(db)` | `string` | "10.11.6-MariaDB", "8.0.35", … |
+| `MySQL.ExecBind(db, sql, params)` | `bool` | `?` placeholders via `mysql_stmt_*` (v0.3+) |
+| `MySQL.QueryBindAll(db, sql, params)` | `List<List<string>>` | Parameterised SELECT (v0.3+) |
+| `MySQL.Begin(db)` | `bool` | Start transaction (v0.3+) |
+| `MySQL.Commit(db)` | `bool` | Commit transaction (v0.3+) |
+| `MySQL.Rollback(db)` | `bool` | Roll back transaction (v0.3+) |
+
+### Parameter binding (v0.3+)
+
+```amalgame
+let params: List<string> = new List<string>()
+params.Add("Alice")
+params.Add("30")
+MySQL.ExecBind(db, "INSERT INTO users (name, age) VALUES (?, ?)", params)
+```
+
+Positional `?` placeholders (1-indexed in SQL, 0-indexed in the
+list — same convention as SQLite and DuckDB; PostgreSQL uses
+`$1`/`$2` instead). Implementation goes through the libmariadb
+prepared-statement API (`mysql_stmt_init` / `_prepare` /
+`_bind_param` / `_execute`). Every value is bound as
+`MYSQL_TYPE_STRING`; MySQL applies its standard text→column
+coercion server-side. Arity mismatches surface as `"param count
+mismatch: got X, sql expects Y"` in `LastError`.
 
 ### Connection params
 
