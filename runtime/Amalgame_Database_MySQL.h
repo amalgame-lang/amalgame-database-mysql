@@ -327,11 +327,11 @@ static inline int _ammy_bind_params(
             binds[i].buffer      = (char*) v;
             binds[i].buffer_length = lens[i];
             binds[i].length      = &lens[i];
-            binds[i].is_null     = (bool*) &nulls[i];
+            binds[i].is_null     = (void*) &nulls[i];   /* bool* (MySQL 8) or my_bool* (MariaDB) */
         } else {
             nulls[i]             = 1;
             binds[i].buffer_type = MYSQL_TYPE_NULL;
-            binds[i].is_null     = (bool*) &nulls[i];
+            binds[i].is_null     = (void*) &nulls[i];   /* bool* (MySQL 8) or my_bool* (MariaDB) */
         }
     }
     *outBinds = binds; *outLens = lens; *outNulls = nulls;
@@ -448,7 +448,7 @@ static inline AmalgameList* Amalgame_Database_MySQL_QueryBindAll(
         rbinds[j].buffer        = rbufs[j];
         rbinds[j].buffer_length = cap;
         rbinds[j].length        = &rlens[j];
-        rbinds[j].is_null       = (bool*) &rnulls[j];
+        rbinds[j].is_null       = (void*) &rnulls[j];  /* bool* (MySQL 8) or my_bool* (MariaDB) */
     }
     if (mysql_stmt_bind_result(stmt, rbinds) != 0) {
         db->last_error = _ammy_err_dup(mysql_stmt_error(stmt));
