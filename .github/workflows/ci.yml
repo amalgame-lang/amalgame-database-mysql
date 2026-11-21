@@ -41,7 +41,7 @@ jobs:
       matrix:
         # v0.2.0+ requires amc 0.8.40+ for `returns_generic` on
         # QueryAll. Pinned to the latest amc release.
-        amc-tag: [v0.8.47]
+        amc-tag: [v0.8.91]
 
     steps:
       - uses: actions/checkout@v4
